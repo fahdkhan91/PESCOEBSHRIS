@@ -17,20 +17,27 @@
         <button onclick="check()">Search Server</button>
         <p id="res" style="margin-top:20px; font-weight:bold;"></p>
     </div>
-    <script>
-        function check() {
-            const p = document.getElementById('p').value;
-            const q = document.getElementById('q').value.toLowerCase();
-            const res = document.getElementById('res');
-            if(p !== "1234") { alert("Access Denied"); return; }
-            if(q === "report") {
-                res.innerHTML = "✅ <a href='./Profile_18191.pdf' target='_blank'>Click to Open Profile_18191.pdf</a>";
-            } else {
-                res.innerHTML = "❌ Label not found.";
-            }
+  <script>
+    function check() {
+        const p = document.getElementById('p').value;
+        const q = document.getElementById('q').value.toLowerCase();
+        const res = document.getElementById('res');
+
+        if(p !== "1234") { 
+            alert("Access Denied"); 
+            return; 
         }
-    </script>
+
+        // This now matches your uploaded file name exactly
+        if(q === "report") {
+            res.innerHTML = "✅ <a href='./Profile_18191.pdf' target='_blank'>Click to Open Profile_18191.pdf</a>";
+        } else {
+            res.innerHTML = "❌ Label not found.";
+        }
+    }
+</script>
 </body>
 </html>
+
 
 
