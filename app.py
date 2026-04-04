@@ -36,16 +36,30 @@ app = Flask(__name__)
 app.secret_key = 'your_very_secret_key'
 
 # Oracle connection
-connection = oracledb.connect(
-    user="apps",
-    password="appstest12",
-    dsn="10.10.12.15:1521/PERPROD"
-)
 
 
 def get_db_connection():
-    # Replace with your actual credentials used in the PESCO-EBS-HRIS project
-    return oracledb.connect(user="apps", password="appstest12", dsn="10.10.12.15:1521/PERPROD")
+    # Check for mock mode FIRST
+    if USE_MOCK_DB:
+        print("MOCK MODE: Returning fake connection")
+        return MockConnection()
+    
+    # Only try real Oracle if NOT in mock mode
+    try:
+        print("REAL MODE: Connecting to Oracle...")
+        connection = oracledb.connect(
+            user="apps",
+            password="appstest12",
+            dsn="10.10.12.15:1521/PERPROD"
+        )
+        return connection
+    except Exception as e:
+        print(f"Oracle connection failed: {e}")
+        print("Switching to MOCK mode")
+        global USE_MOCK_DB
+        USE_MOCK_DB = True
+        return MockConnection()
+
 
 @app.route("/download_pdf/<query_name>")
 def download_pdf(query_name):
