@@ -10,6 +10,11 @@ import platform
 import json
 
 
+# THIS LINE MUST BE HERE - Checks for environment variable
+USE_MOCK_DB = os.environ.get('USE_MOCK_DB', 'false').lower() == 'true'
+
+print(f"=== DATABASE MODE: {'MOCK' if USE_MOCK_DB else 'REAL'} ===")
+
 
 def init_oracle():
     try:
