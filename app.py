@@ -260,7 +260,7 @@ GROUP BY um.circle_name
 ORDER BY CASE WHEN um.circle_name = 'Head Quarter' THEN 0 ELSE 1 END, um.circle_name
 """,
 
-"Vacancy": r"""
+"Vacancy":
 
 WITH
   /* ================= SCALE 17 BASE DATA ================= */
