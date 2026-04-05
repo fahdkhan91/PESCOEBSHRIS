@@ -1,3 +1,5 @@
+
+USE_MOCK_DB = True  # Force mock mode for Render
 from flask import Flask, jsonify, render_template, request, url_for, session, redirect, stream_with_context, request, Response
 from flask import send_file, render_template_string
 import pandas as pd
@@ -11,7 +13,7 @@ import json
 import traceback
 
 
-USE_MOCK_DB = True  # Force mock mode for Render
+
 
 if USE_MOCK_DB:
     print("⚠️  RUNNING IN MOCK MODE - Using fake database responses")
