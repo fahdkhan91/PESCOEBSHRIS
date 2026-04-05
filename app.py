@@ -84,6 +84,9 @@ def init_oracle():
 print(f"=== RUNNING IN {'MOCK' if USE_MOCK_DB else 'REAL'} MODE ===")
 # ============================================
 # END OF ADDED BLOCK - YOUR ORIGINAL CODE CONTINUES BELOW
+
+app = Flask(__name__)
+app.secret_key = 'your_very_secret_key'
 @app.route("/download_pdf/<query_name>")
 def download_pdf(query_name):
 
