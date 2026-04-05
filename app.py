@@ -10,30 +10,28 @@ import platform
 import json
 
 
-IS_RENDER = os.environ.get('RENDER', 'false').lower() == 'true'
-
-# If on Render OR if USE_MOCK_DB is true, use mock mode
-USE_MOCK_DB = IS_RENDER or os.environ.get('USE_MOCK_DB', 'false').lower() == 'true'
-
-print(f"=== DEPLOYMENT INFO ===")
-print(f"On Render: {IS_RENDER}")
-print(f"Database Mode: {'MOCK (fake data)' if USE_MOCK_DB else 'REAL (Oracle)'}")
-print(f"======================")
-
-# Only try to import oracledb if NOT in mock mode
-if not USE_MOCK_DB:
+def init_oracle():
+    global USE_MOCK_DB  # MUST be first line
+    
+    if USE_MOCK_DB:
+        print("Running in MOCK mode - no Oracle connection")
+        return
+    
     try:
-        import oracledb
-        print("✓ oracledb imported")
-    except ImportError:
-        print("✗ oracledb not available, using mock mode")
+        if platform.system() == "Linux":
+            lib_dir = os.path.join(os.getcwd(), "instantclient")
+            if os.path.exists(lib_dir):
+                oracledb.init_oracle_client(lib_dir=lib_dir)
+            else:
+                print("Oracle client not found, using mock mode")
+                USE_MOCK_DB = True
+        else:
+            oracledb.init_oracle_client(lib_dir=r"C:\oracle\instantclient_23_0")
+        print("Oracle Thick Mode initialized.")
+    except Exception as e:
+        print(f"Oracle Client Error: {e}")
+        print("Switching to MOCK mode")
         USE_MOCK_DB = True
-else:
-    print("MOCK MODE: Skipping oracledb import")
-    # Create a dummy oracledb module to avoid errors
-    oracledb = type('MockOracle', (), {})()
-
-
 def init_oracle():
     try:
       
