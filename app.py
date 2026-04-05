@@ -55,12 +55,12 @@ app.secret_key = 'your_very_secret_key'
 
 
 def get_db_connection():
-    # Check for mock mode FIRST
+    global USE_MOCK_DB  # MUST be first line
+    
     if USE_MOCK_DB:
         print("MOCK MODE: Returning fake connection")
         return MockConnection()
     
-    # Only try real Oracle if NOT in mock mode
     try:
         print("REAL MODE: Connecting to Oracle...")
         connection = oracledb.connect(
@@ -70,9 +70,8 @@ def get_db_connection():
         )
         return connection
     except Exception as e:
-        print(f"Oracle connection failed: {e}")
+        print(f"Failed to connect to Oracle: {e}")
         print("Switching to MOCK mode")
-        global USE_MOCK_DB
         USE_MOCK_DB = True
         return MockConnection()
 
