@@ -10,68 +10,40 @@ import platform
 import json
 import traceback
 
+
+USE_MOCK_DB = True  # Force mock mode for Render
+
+if USE_MOCK_DB:
+    print("⚠️  RUNNING IN MOCK MODE - Using fake database responses")
+else:
+    print("✅ RUNNING IN REAL MODE - Attempting Oracle connection")
+
+# ============================================================
+# MOCK CLASSES (Must be defined before use)
+# ============================================================
+class MockConnection:
+    def cursor(self):
+        return MockCursor()
+    def close(self):
+        pass
+    def commit(self):
+        pass
+
+class MockCursor:
+    def __init__(self):
+        self.description = None
+        self.results = []
+        self.arraysize = 1000
+    
+    def execute(self, query, params=None):
+        print(f"MOCK: Executing query")
+
+
+
 # ============================================================
 # MOCK MODE ACTIVATION (ADDED FOR RENDER DEPLOYMENT)
 # ============================================================
 # Force mock mode on Render. Set to False if you deploy to a cloud with real DB access.
-USE_MOCK_DB = True  # <-- CHANGE TO False IF YOU HAVE A REAL CLOUD ORACLE DB
-
-if USE_MOCK_DB:
-    print("⚠️  RUNNING IN MOCK MODE - Using fake database responses")
-    print("   To use real Oracle DB, set USE_MOCK_DB = False and ensure network access")
-else:
-    print("✅ RUNNING IN REAL MODE - Attempting Oracle connection")
-# ============================================================
-
-# Original Oracle initialization function (preserved but guarded)
-def init_oracle():
-    if USE_MOCK_DB:
-        print("Mock mode active - skipping Oracle client init")
-        return
-    
-    try:
-        if platform.system() == "Linux":
-            lib_dir = os.path.join(os.getcwd(), "instantclient")
-            oracledb.init_oracle_client(lib_dir=lib_dir)
-        else:
-            oracledb.init_oracle_client(lib_dir=r"C:\oracle\instantclient_23_0")
-        print("Oracle Thick Mode initialized.")
-    except Exception as e:
-        print(f"Oracle Client Error: {e}")
-        # Fallback to mock mode if Oracle init fails
-        global USE_MOCK_DB
-        USE_MOCK_DB = True
-        print("Falling back to MOCK MODE due to Oracle client error")
-
-# Call the original initialization (it will be skipped if USE_MOCK_DB is True)
-init_oracle()
-
-app = Flask(__name__)
-app.secret_key = 'your_very_secret_key'
-
-# ============================================================
-# MODIFIED CONNECTION FUNCTION (with mock support)
-# ============================================================
-def get_db_connection():
-    if USE_MOCK_DB:
-        return MockConnection()
-    
-    try:
-        connection = oracledb.connect(
-            user="apps",
-            password="appstest12",
-            dsn="10.10.12.15:1521/PERPROD"
-        )
-        return connection
-    except Exception as e:
-        print(f"Oracle connection failed: {e}")
-        # Fallback to mock mode if connection fails
-        global USE_MOCK_DB
-        USE_MOCK_DB = True
-        return MockConnection()
-
-# Global connection object (will be mock or real based on USE_MOCK_DB)
-connection = get_db_connection()
 
 # ============================================================
 
