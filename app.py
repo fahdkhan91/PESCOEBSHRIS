@@ -144,23 +144,42 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # Check if username exists and password matches
         user_info = USERS.get(username)
         
         if user_info and user_info['password'] == password:
             session['logged_in'] = True
             session['username'] = username
-            session['user_role'] = user_info['role']  # <--- SAVE THE ROLE HERE
+            session['user_role'] = user_info['role']
             return redirect(url_for('dashboard'))
         else:
             return "Invalid credentials", 401
-            
-    return render_template('login.html')
-
-def roles_required(*allowed_roles):
-    if session.get('user_role') not in allowed_roles:
-        return False
-    return True
+    
+    # Inline HTML instead of render_template
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>PESCO HRIS Login</title>
+        <style>
+            body { font-family: Arial; text-align: center; margin-top: 100px; }
+            input { padding: 8px; margin: 5px; width: 200px; }
+            button { padding: 8px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        </style>
+    </head>
+    <body>
+        <h2>PESCO HRIS Login</h2>
+        <form method="post">
+            <input type="text" name="username" placeholder="Username" required><br>
+            <input type="password" name="password" placeholder="Password" required><br>
+            <button type="submit">Login</button>
+        </form>
+        <p>Demo Credentials:</p>
+        <p>pesco_admin / admin123</p>
+        <p>pesco_hr / hr456</p>
+        <p>pesco_viewer / guest789</p>
+    </body>
+    </html>
+    ...
 
 
 
