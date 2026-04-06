@@ -155,31 +155,8 @@ def login():
             return "Invalid credentials", 401
     
     # Inline HTML instead of render_template
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>PESCO HRIS Login</title>
-        <style>
-            body { font-family: Arial; text-align: center; margin-top: 100px; }
-            input { padding: 8px; margin: 5px; width: 200px; }
-            button { padding: 8px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
-        </style>
-    </head>
-    <body>
-        <h2>PESCO HRIS Login</h2>
-        <form method="post">
-            <input type="text" name="username" placeholder="Username" required><br>
-            <input type="password" name="password" placeholder="Password" required><br>
-            <button type="submit">Login</button>
-        </form>
-        <p>Demo Credentials:</p>
-        <p>pesco_admin / admin123</p>
-        <p>pesco_hr / hr456</p>
-        <p>pesco_viewer / guest789</p>
-    </body>
-    </html>
-    ...
+
+
 
 
 
