@@ -1,0 +1,329 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PESCO Strategic Workforce Planning</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #0b0e14;
+            --bg-sidebar: #161b22;
+            --accent-blue: #2f81f7;
+            --border-color: #30363d;
+            --stat-card-bg: #1c2128;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            background: var(--bg-dark);
+            color: #adbac7;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styling */
+        .sidebar {
+            width: 260px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 20px 0;
+        }
+
+        .sidebar-header {
+            padding: 0 20px 30px;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar nav { flex: 1; overflow-y: auto; }
+
+        .sidebar button {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            background: none;
+            color: #adbac7;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: 0.2s;
+        }
+
+        .sidebar button:hover, .sidebar button.active {
+            background: #21262d;
+            color: white;
+        }
+
+        .sidebar button i { width: 20px; color: var(--accent-blue); }
+        .sidebar hr { border: 0; border-top: 1px solid var(--border-color); margin: 15px 0; }
+
+        .sub-menu {
+            display: none; 
+            background: #0d1117; 
+            padding-left: 20px;
+            border-left: 2px solid var(--border-color);
+            margin: 5px 20px;
+        }
+        .sub-menu button { 
+            font-size: 0.85rem; 
+            padding: 8px 15px; 
+            color: #8b949e;
+        }
+
+        /* Main Content Styling */
+        .main-content {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+            background: var(--bg-dark);
+        }
+
+        .content-header h1 {
+            color: white;
+            margin: 0 0 25px 0;
+            font-size: 1.8rem;
+        }
+
+        /* Dashboard Stat Cards */
+        .dash-row { display: flex; gap: 15px; margin-bottom: 25px; }
+        .stat-card {
+            background: var(--stat-card-bg);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 8px;
+            flex: 1;
+        }
+        .stat-card small { color: #768390; text-transform: uppercase; font-size: 0.7rem; }
+        .stat-card h2 { margin: 5px 0 0 0; font-size: 1.8rem; }
+
+        /* Chart Containers */
+        .chart-grid { display: flex; gap: 20px; }
+        .chart-container {
+            background: var(--stat-card-bg);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        /* Table Styling */
+        .data-card {
+            background: #1c2128;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #2d333b; color: white; padding: 15px; text-align: left; font-size: 0.8rem; text-transform: uppercase; }
+        td { padding: 15px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; }
+
+        #search {
+            background: #21262d;
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 10px;
+            width: 100%;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .logout-section { padding: 20px; border-top: 1px solid var(--border-color); }
+        .btn-logout { color: #f85149 !important; }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <i class="fas fa-bolt"></i>
+        <span>PESCO HRIS</span>
+    </div>
+
+    <nav>
+    <div class="sidebar-item">
+        <button onclick="togglePayrollMenu()" class="dropdown-btn">
+            <i class="fas fa-file-invoice-dollar"></i> Payroll Analytics
+            <i class="fas fa-chevron-down" style="margin-left: auto;"></i>
+        </button>
+        <div id="payroll-analytics-options" class="sub-menu">
+            <button onclick="updatePayrollDashboard('Payroll')">Payroll View</button>
+            <button onclick="updatePayrollDashboard('Deductions')">Deductions View</button>
+        </div>
+    </div>
+    
+    <button onclick="toggleAnalyticsMenu()" id="dash-btn">
+        <i class="fas fa-chart-pie"></i> Analytics Dashboard
+        <i class="fas fa-chevron-down" style="font-size: 0.7rem; margin-left: auto;"></i>
+    </button>
+    <div id="analytics-options" class="sub-menu">
+        <button onclick="updateVisualDashboard('Grade')">Grade View</button>
+        <button onclick="updateVisualDashboard('Job')">Job View</button>
+        <button onclick="updateVisualDashboard('Org')">Circle View</button>
+        <button onclick="updateVisualDashboard('Retirement')">Retirement Forecast</button>
+        <button onclick="updateVisualDashboard('Vacancy')">Vacancy View</button> 
+    </div>
+    
+    <hr>
+
+    <button onclick="loadData('All_Employees_Data')"><i class="fas fa-users"></i> All Employees</button>
+    <button onclick="loadData('Payroll')"><i class="fas fa-money-check-alt"></i> Payroll Data</button>
+    <button onclick="loadData('Payroll_Register')"><i class="fas fa-list-alt"></i> Payroll Register</button>
+    <button onclick="loadData('Payroll Deductions')"><i class="fas fa-hand-holding-usd"></i> Payroll Deductions</button>
+    
+    <hr>
+
+    <button onclick="loadData('Grade_Wise_Vacancy')"><i class="fas fa-layer-group"></i> Grade Vacancy</button>
+    <button onclick="loadData('Circle_Wise_Vacancy')"><i class="fas fa-circle-notch"></i> Circle Vacancy</button>
+    <button onclick="loadData('Job_Wise_Vacancy')"><i class="fas fa-briefcase"></i> Job Vacancy</button>
+    
+    <button onclick="loadData('Sub_Division_Wise_Vacancy')"><i class="fas fa-map-marker-alt"></i> Sub Division Vacancy</button>
+    <button onclick="loadData('3_Levels_of_Organization_Hierarchy_Vacancy')"><i class="fas fa-sitemap"></i> Org Hierarchy (3 Levels)</button>
+    
+    <button onclick="loadData('Retirement_Forecast')"><i class="fas fa-user-clock"></i> Retirement Forecast</button>
+
+    <hr>
+
+    <button onclick="showSalarySlipView()">
+        <i class="fas fa-file-invoice"></i> Salary Slip Tool
+    </button>
+
+<button onclick="bulkSalarySlipPrompt()">
+    <i class="fas fa-copy"></i> Bulk Salary Slips
+</button>
+</nav>
+    <div class="logout-section">
+        <button onclick="downloadExcel()" style="color: #3fb950; background:none; border:none; cursor:pointer; width:100%; text-align:left; padding:10px 20px;">
+            <i class="fas fa-file-excel"></i> Download Excel
+        </button>
+        <button onclick="downloadPDF()" style="color: #f85149; background:none; border:none; cursor:pointer; width:100%; text-align:left; padding:10px 20px;">
+            <i class="fas fa-file-pdf"></i> Download PDF
+        </button>
+        <button onclick="window.location.href='/logout'" class="btn-logout" style="background:none; border:none; cursor:pointer; width:100%; text-align:left; padding:10px 20px;">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+    </div>
+</aside>
+
+<main class="main-content">
+    <h1 id="page-title">Dashboard Overview</h1>
+
+    <div id="table-controls" style="display:none;">
+        <input id="search" placeholder="Quick search..." onkeyup="filterTable()">
+        <div class="info-bar" style="margin-bottom: 15px;">
+            <i class="fas fa-info-circle"></i> Total Records: <span id="resource-count">0</span>
+        </div>
+        <div class="data-card">
+            <div id="table"></div>
+        </div>
+    </div>
+
+    <div id="visual-dashboard" style="display:none;">
+        <div id="dash-loader" style="display:none; text-align: center; padding: 100px;">
+            <i class="fas fa-circle-notch fa-spin" style="font-size: 3rem; color: #2f81f7;"></i>
+            <p style="margin-top: 15px; color: #8b949e;">Generating Workforce Analytics...</p>
+        </div>
+
+        <div id="dash-content">
+            <div class="dash-row">
+                <div class="stat-card">
+                    <small>Working</small>
+                    <h2 id="dash-total" style="color: #58a6ff;">0</h2>
+                </div>
+                <div class="stat-card">
+                    <small>Sanctioned</small>
+                    <h2 id="dash-sanctioned" style="color: #3fb950;">0</h2>
+                </div>
+                <div class="stat-card">
+                    <small>Vacant</small>
+                    <h2 id="dash-vacant" style="color: #f85149;">0</h2>
+                </div>
+            </div>
+
+            <div class="dashboard-search-container" style="margin-bottom: 20px;">
+                <input type="text" id="dash-search" placeholder="Search dashboard data..." onkeyup="filterDashboard()" 
+                       style="width: 100%; padding: 12px; background: #1c2128; border: 1px solid #30363d; color: #adbac7; border-radius: 6px;">
+            </div>
+
+            <div class="chart-grid">
+                <div class="chart-container" style="flex: 2;">
+                    <h4 id="main-chart-title" style="color:white; margin-top:0;">Strength Analysis</h4>
+                    <div style="height: 400px; position: relative;"><canvas id="jobChart"></canvas></div>
+                </div>
+                <div class="chart-container" style="flex: 1;">
+                    <h4 id="pie-chart-title" style="color:white; margin-top:0;">Composition</h4>
+                    <div style="height: 400px; position: relative;"><canvas id="compositionChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="salary-slip-container" style="display:none; width: 100%;">
+        </div>
+</main>
+
+<script>
+    /**
+     * Master UI Switcher
+     * Ensures only one major container is visible at a time.
+     */
+    function switchView(mode) {
+        const table = document.getElementById('table-controls');
+        const dash = document.getElementById('visual-dashboard');
+        const slip = document.getElementById('salary-slip-container');
+
+        // Hide All
+        if (table) table.style.display = 'none';
+        if (dash) dash.style.display = 'none';
+        if (slip) slip.style.display = 'none';
+
+        // Show Requested
+        if (mode === 'table') table.style.display = 'block';
+        else if (mode === 'analytics') dash.style.display = 'block';
+        else if (mode === 'salary') slip.style.display = 'block';
+    }
+
+    // Salary Slip Entry Point
+    function showSalarySlipView() {
+        switchView('salary');
+        document.getElementById('page-title').innerText = 'Employee Salary Slip';
+        if(typeof loadData === 'function') {
+            loadData('Salary_Slip');
+        }
+    }
+
+    // Sidebar Menu Toggles
+    function togglePayrollMenu() {
+        const menu = document.getElementById('payroll-analytics-options');
+        menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function toggleAnalyticsMenu() {
+        const menu = document.getElementById('analytics-options');
+        menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+    }
+</script>
+
+<script src="/static/script.js"></script>
+
+</body>
+</html>
