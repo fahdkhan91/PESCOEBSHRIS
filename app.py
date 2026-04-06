@@ -1,3 +1,15 @@
+
+from flask import Flask, jsonify, render_template, request, url_for, session, redirect, stream_with_context, request, Response
+from flask import send_file, render_template_string
+import pandas as pd
+from io import BytesIO
+from datetime import datetime
+import oracledb
+import io
+import os
+import platform
+import json
+
 USE_MOCK_DB = True  # Set to False for real Oracle, True for Render deployment
 
 # Mock Database Classes (only used when USE_MOCK_DB = True)
@@ -86,24 +98,13 @@ print(f"=== RUNNING IN {'MOCK' if USE_MOCK_DB else 'REAL'} MODE ===")
 # END OF ADDED BLOCK - YOUR ORIGINAL CODE CONTINUES BELOW
 
 app = Flask(__name__)
-app.secret_key = 'your_very_secret_key'
+app.secret_key = 'pesco_hris_2026_secret_key'
 @app.route("/download_pdf/<query_name>")
 def download_pdf(query_name):
 
     html_table = df.to_html(classes='table table-striped', index=False)
 
     from svglib.svglib import svg2rlg
-
-from flask import Flask, jsonify, render_template, request, url_for, session, redirect, stream_with_context, request, Response
-from flask import send_file, render_template_string
-import pandas as pd
-from io import BytesIO
-from datetime import datetime
-import oracledb
-import io
-import os
-import platform
-import json
 
 
 
