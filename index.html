@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,7 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
         :root {
@@ -184,6 +183,9 @@
     </div>
     
     <hr>
+    <button onclick="triggerEmployee360()">
+        <i class="fas fa-id-card"></i> Employee's 360
+    </button>
 
     <button onclick="loadData('All_Employees_Data')"><i class="fas fa-users"></i> All Employees</button>
     <button onclick="loadData('Payroll')"><i class="fas fa-money-check-alt"></i> Payroll Data</button>
@@ -207,10 +209,11 @@
         <i class="fas fa-file-invoice"></i> Salary Slip Tool
     </button>
 
-<button onclick="bulkSalarySlipPrompt()">
-    <i class="fas fa-copy"></i> Bulk Salary Slips
-</button>
+    <button onclick="bulkSalarySlipPrompt()">
+        <i class="fas fa-copy"></i> Bulk Salary Slips
+    </button>
 </nav>
+
     <div class="logout-section">
         <button onclick="downloadExcel()" style="color: #3fb950; background:none; border:none; cursor:pointer; width:100%; text-align:left; padding:10px 20px;">
             <i class="fas fa-file-excel"></i> Download Excel
@@ -284,25 +287,21 @@
 <script>
     /**
      * Master UI Switcher
-     * Ensures only one major container is visible at a time.
      */
     function switchView(mode) {
         const table = document.getElementById('table-controls');
         const dash = document.getElementById('visual-dashboard');
         const slip = document.getElementById('salary-slip-container');
 
-        // Hide All
         if (table) table.style.display = 'none';
         if (dash) dash.style.display = 'none';
         if (slip) slip.style.display = 'none';
 
-        // Show Requested
         if (mode === 'table') table.style.display = 'block';
         else if (mode === 'analytics') dash.style.display = 'block';
         else if (mode === 'salary') slip.style.display = 'block';
     }
 
-    // Salary Slip Entry Point
     function showSalarySlipView() {
         switchView('salary');
         document.getElementById('page-title').innerText = 'Employee Salary Slip';
@@ -311,7 +310,6 @@
         }
     }
 
-    // Sidebar Menu Toggles
     function togglePayrollMenu() {
         const menu = document.getElementById('payroll-analytics-options');
         menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
@@ -320,6 +318,20 @@
     function toggleAnalyticsMenu() {
         const menu = document.getElementById('analytics-options');
         menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+    }
+
+    /**
+     * Employee 360 Function
+     * Opens the generated PDF in a new tab to avoid disturbing the current dashboard view.
+     */
+    function triggerEmployee360() {
+        let userInput = prompt("Enter Employee Number or CNIC:");
+        
+        if (userInput !== null && userInput.trim() !== "") {
+            // This URL points to your Flask route that generates the PDF
+            const url = `/generate_360_pdf?search_val=${encodeURIComponent(userInput.trim())}`;
+            window.open(url, '_blank');
+        }
     }
 </script>
 
