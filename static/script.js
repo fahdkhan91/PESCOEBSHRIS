@@ -408,7 +408,7 @@ function renderSalarySlip(data, inputMonth) {
     );
 
     // Determine the display month: use inputMonth if provided, else from data, else "N/A"
-    const displayMonth = (inputMonth || d.PAYROLL_DATE || d.PAYROLL_MONTH || "N/A").toString().toUpperCase();
+    const displayMonth = (d.PAYROLL_MONTH || "N/A").toString().toUpperCase();
 
     const metaKeys = new Set([
         'EMPLOYEE_NUMBER', 'EMPLOYEE_NAME', 'CNIC', 'DEPARTMENT', 
@@ -710,172 +710,451 @@ function downloadSlipPDF(fileName) {
 
 async function bulkSalarySlipPrompt() {
     const empNo = prompt("Enter Employee Number (Optional):", "");
-    const set_id = prompt("Enter Assignment Set ID (Optional):", "");
+    const set_id = prompt("Enter Assignment Set ID:", "");
     let payrollDate = prompt("Enter Payroll Date (Format: DD-MON-YYYY, e.g., 31-JAN-2026):");
+    
     if (!payrollDate) return;
-
     payrollDate = payrollDate.toUpperCase();
-    const datePattern = /^\d{2}-[A-Z]{3}-\d{4}$/;
-    if (!datePattern.test(payrollDate)) {
-        alert("Invalid date format. Please use DD-MON-YYYY with uppercase month (e.g., 31-JAN-2026)");
-        return;
-    }
-
-    if (!empNo && !set_id) {
-        alert("Please enter either an Employee Number or an Assignment Set ID.");
-        return;
-    }
-
+    
     if (empNo) {
         showSalarySlipView();
         return;
     }
-
-    const url = `/api/Bulk_Salary_Slips?set_id=${encodeURIComponent(set_id)}&date=${encodeURIComponent(payrollDate)}`;
-    console.log("Fetching bulk slips:", url);
-
+    
+    if (!set_id) {
+        alert("Assignment Set ID is required.");
+        return;
+    }
+    
+    // Show progress
+    const progressDiv = showProgressIndicator();
+    
     try {
-        const response = await fetch(url);
-        const bulkData = await response.json();
-
-        if (!Array.isArray(bulkData)) {
-            alert("Server error: " + (bulkData.error || "Check console"));
+        // Fetch complete data
+        const response = await fetch(`/api/Bulk_Salary_Slips?set_id=${encodeURIComponent(set_id)}&date=${encodeURIComponent(payrollDate)}`);
+        const data = await response.json();
+        
+        if (data.error) throw new Error(data.error);
+        
+        if (!data || data.length === 0) {
+            alert("No records found.");
+            removeProgressIndicator(progressDiv);
             return;
         }
-
-        if (bulkData.length === 0) {
-            alert("No records found for Assignment Set ID: " + set_id);
-            return;
-        }
-
-        alert(`Found ${bulkData.length} records. Generating PDF...`);
-
-        // Helper to generate a single slip's HTML (exact match to single slip)
-        function generateSlipHTML(item, month) {
-            const d = Object.fromEntries(
-                Object.entries(item).map(([k, v]) => [k.toUpperCase().trim(), v])
-            );
-            const metaKeys = new Set([
-                'EMPLOYEE_NUMBER', 'EMPLOYEE_NAME', 'CNIC', 'DEPARTMENT',
-                'DESIGNATION', 'GRADE', 'PAYROLL_MONTH', 'PAYROLL_DATE',
-                'GP_FUND', 'GROSS_PAY', 'TOTAL_DEDUCTION', 'NET_SALARY'
-            ]);
-            const deductionKeys = new Set([
-                'INCOME_TAX', 'GOVT_PROVIDENT_FUND', 'WAPDA_WELFARE_FUND',
-                'GLI_DEDUCTION', 'UNION_FUND', 'HOUSE_RENT_DEDUCTION',
-                'MISC_RECOVERY', 'BUS_CHARGES', 'BENEVOLENT_FUND'
-            ]);
-
-            let earningsHTML = "";
-            let deductionsHTML = "";
-            Object.keys(d).forEach(key => {
-                const val = Number(String(d[key] || 0).replace(/,/g, ''));
-                if (val > 0 && !metaKeys.has(key)) {
-                    const rowStr = `
-                        <div style="display:flex; justify-content:space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0; font-size: 11px;">
-                            <span style="text-transform: uppercase;">${key.replace(/_/g, ' ')}</span>
-                            <span style="font-family: monospace; font-weight: bold;">${val.toLocaleString()}</span>
-                        </div>`;
-                    if (deductionKeys.has(key)) deductionsHTML += rowStr;
-                    else earningsHTML += rowStr;
-                }
-            });
-
-            return `
-                <div style="background:white; color:black; font-family: 'Arial', sans-serif; width: 800px; margin: 0; border: 2px solid #000; padding: 30px;">
-                    <div style="text-align:center; border-bottom: 2px solid #000; margin-bottom: 15px; padding-bottom: 10px;">
-                        <h2 style="margin:0; font-size: 20px;">PESHAWAR ELECTRIC SUPPLY COMPANY</h2>
-                        <div style="font-weight:bold; font-size: 14px; margin-top: 5px;">Salary for the month of ${month}</div>
-                    </div>
-                    <table style="width:100%; font-size: 12px; margin-bottom: 15px; border-collapse: collapse;">
-                            <tr>
-                                <td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>Name:</strong> ${d.EMPLOYEE_NAME || 'N/A'}</td>
-                                <td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>Emp No:</strong> ${d.EMPLOYEE_NUMBER || 'N/A'}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>CNIC:</strong> ${d.CNIC || 'N/A'}</td>
-                                <td style="padding: 5px; border-bottom: 1px solid #eee;"><strong>Dept:</strong> ${d.DEPARTMENT || 'N/A'}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 5px;"><strong>Grade:</strong> ${d.GRADE || 'N/A'}</td>
-                                <td style="padding: 5px;"><strong>GP Fund No:</strong> ${d.GP_FUND || 'N/A'}</td>
-                            </tr>
-                    </table>
-                    <div style="display: flex; border: 1.5px solid black; min-height: 280px;">
-                        <div style="flex: 1.2; border-right: 1.5px solid black; padding: 10px;">
-                            <div style="text-align:center; font-weight:bold; background:#eee; font-size:11px; border-bottom:1px solid black; margin-bottom:8px; padding: 2px;">EARNINGS</div>
-                            ${earningsHTML}
-                            <div style="border-top: 1.5px solid black; margin-top: 15px; padding-top: 8px; display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
-                                <span>GROSS CLAIM:</span>
-                                <span>Rs. ${Number(d.GROSS_PAY || 0).toLocaleString()}</span>
-                            </div>
-                        </div>
-                        <div style="flex: 1; padding: 10px;">
-                            <div style="text-align:center; font-weight:bold; background:#eee; font-size:11px; border-bottom:1px solid black; margin-bottom:8px; padding: 2px;">DEDUCTIONS</div>
-                            ${deductionsHTML}
-                            <div style="border-top: 1.5px solid black; margin-top: 15px; padding-top: 8px; display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
-                                <span>TOTAL DED:</span>
-                                <span>Rs. ${Number(d.TOTAL_DEDUCTION || 0).toLocaleString()}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="margin-top: 15px; border: 2.2px solid black; padding: 8px 15px; background: #fdfdfd; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 14px; font-weight: bold;">NET AMOUNT PAYABLE:</span>
-                        <span style="font-size: 18px; font-weight: 900;">Rs. ${Number(d.NET_SALARY || 0).toLocaleString()}</span>
-                    </div>
-                </div>
-            `;
-        }
-
-        // Create temporary container off‑screen
-        const tempContainer = document.createElement('div');
-        tempContainer.style.position = 'absolute';
-        tempContainer.style.left = '-9999px';
-        tempContainer.style.top = '0';
-        tempContainer.style.width = '800px';
-        document.body.appendChild(tempContainer);
-
-        // Prepare PDF (using jsPDF)
+        
+        updateProgress(progressDiv, 0, data.length);
+        
+        // Initialize PDF with text mode
         const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'letter');
-        let isFirstPage = true;
-
-        // Process each slip sequentially
-        for (let i = 0; i < bulkData.length; i++) {
-            const slipHTML = generateSlipHTML(bulkData[i], payrollDate);
-            const slipDiv = document.createElement('div');
-            slipDiv.innerHTML = slipHTML;
-            tempContainer.appendChild(slipDiv);
-
-            // Wait for the browser to render
-            await new Promise(resolve => setTimeout(resolve, 200));
-
-            const slipElement = slipDiv.firstElementChild;
-            const canvas = await html2canvas(slipElement, { scale: 2, useCORS: true });
-            const imgData = canvas.toDataURL('image/png');
-
-            const imgWidth = pdf.internal.pageSize.getWidth();
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-            if (!isFirstPage) {
+        const pdf = new jsPDF({
+            unit: 'mm',
+            format: 'a4',
+            orientation: 'portrait',
+            compress: true
+        });
+        
+        let processedCount = 0;
+        
+        // Process each record
+        for (const record of data) {
+            if (processedCount > 0) {
                 pdf.addPage();
             }
-            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-            isFirstPage = false;
-
-            // Remove this slip to free memory
-            tempContainer.removeChild(slipDiv);
+            
+            // Add complete text-based salary slip with Lumpsum Salary
+            addCompleteSalarySlipToPDF(pdf, record, payrollDate);
+            
+            processedCount++;
+            
+            if (processedCount % 5 === 0) {
+                updateProgress(progressDiv, processedCount, data.length);
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
         }
-
-        // Save the PDF
-        pdf.save(`Bulk_Slips_SetID_${set_id}_${payrollDate}.pdf`);
-
-        // Clean up
-        document.body.removeChild(tempContainer);
-        alert("PDF generated successfully!");
-
+        
+        const fileName = `Salary_Slips_SetID_${set_id}_${payrollDate}.pdf`;
+        pdf.save(fileName);
+        
+        removeProgressIndicator(progressDiv);
+        alert(`✅ PDF Generated Successfully!\n\n📄 ${processedCount} salary slips\n🔍 Fully searchable text (Ctrl+F works)\n💾 Optimized file size\n💰 All allowances including Lumpsum Salary included`);
+        
     } catch (err) {
-        console.error("Bulk salary error:", err);
+        console.error("Error:", err);
+        removeProgressIndicator(progressDiv);
         alert("Error: " + err.message);
     }
+}
+
+
+function addCompleteSalarySlipToPDF(pdf, data, month) {
+    pdf.setFont("helvetica");
+    
+    // Header
+    pdf.setFontSize(16);
+    pdf.setFont("helvetica", "bold");
+    pdf.text("PESHAWAR ELECTRIC SUPPLY COMPANY", 105, 20, { align: "center" });
+    
+    pdf.setFontSize(12);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(`Salary Slip for the month of ${month}`, 105, 30, { align: "center" });
+    
+    pdf.line(20, 35, 190, 35);
+    
+    // Employee Information
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "bold");
+    pdf.text("EMPLOYEE INFORMATION", 20, 45);
+    
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    
+    const empInfo = [
+        ["Employee Name:", data.EMPLOYEE_NAME || "N/A", "Employee No:", data.EMPLOYEE_NUMBER || "N/A"],
+        ["CNIC:", data.CNIC || "N/A", "GP Fund No:", data.GP_FUND || "N/A"],
+        ["Designation:", data.DESIGNATION || "N/A", "Grade:", data.GRADE || "N/A"],
+        ["Department:", data.DEPARTMENT || "N/A", "Position:", data.POSITION || "N/A"]
+    ];
+    
+    let yPos = 52;
+    empInfo.forEach(row => {
+        pdf.text(row[0], 20, yPos);
+        pdf.text(row[1], 50, yPos);
+        pdf.text(row[2], 110, yPos);
+        pdf.text(row[3], 140, yPos);
+        yPos += 7;
+    });
+    
+    // Earnings Section
+    yPos += 5;
+    pdf.line(20, yPos, 190, yPos);
+    yPos += 3;
+    
+    pdf.setFont("helvetica", "bold");
+    pdf.text("EARNINGS", 20, yPos);
+    pdf.text("AMOUNT (PKR)", 170, yPos, { align: "right" });
+    
+    yPos += 5;
+    pdf.line(20, yPos, 190, yPos);
+    yPos += 3;
+    
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    
+    // All Earnings - INCLUDING LUMPSUM SALARY
+    const earnings = [
+        { label: "Basic Salary", value: data.BASIC_SALARY },
+        { label: "Personal Pay", value: data.PERSONAL_PAY },
+        { label: "House Rent Allowance", value: data.HOUSE_RENT_ALLOWANCE },
+        { label: "Cash Medical Allowance", value: data.CASH_MEDICAL_ALLOWANCE },
+        { label: "Conveyance Allowance", value: data.CONVEYANCE_ALLOWANCE },
+        { label: "Hard Area Allowance", value: data.HARD_AREA_ALLOWANCE },
+        { label: "Special Allowance", value: data.SPECIAL_ALLOWANCE },
+        { label: "Danger Allowance", value: data.DANGER_ALLOWANCE },
+        { label: "WAPDA Special Relief", value: data.WAPDA_SPECIAL_RELIEF_ALLOWANCE },
+        { label: "Integrated Allowance", value: data.INTEGRATED_ALLOWANCE },
+        { label: "GLI Allowance", value: data.GLI_ALLOWANCE },
+        { label: "Misc Arrear", value: data.MISC_ARREAR },
+        { label: "Job Allowance", value: data.JOB_ALLOWANCE },
+        { label: "Motor Cycle Allowance", value: data.MOTOR_CYCLE_ALLOWANCE },
+        { label: "Special Pay", value: data.SPECIAL_PAY },
+        { label: "Qualification Pay", value: data.QUALIFICATION_PAY },
+        { label: "Entertainment Allowance", value: data.ENTERTAINMENT_ALLOWANCE },
+        { label: "Special Security Allowance", value: data.SPECIAL_SECURITY_ALLOWANCE },
+        { label: "Headquarter Allowance", value: data.HEADQUARTER_ALLOWANCE },
+        { label: "Senior Post Allowance", value: data.SENIOR_POST_ALLOWANCE },
+        { label: "Hill Area Allowance", value: data.HILL_AREA_ALLOWANCE },
+        { label: "Orderly Allowance", value: data.ORDERLY_ALLOWANCE },
+        { label: "GSO Allowance", value: data.GSO_ALLOWANCE },
+        { label: "Appointment Allowance", value: data.APPOINTMENT_ALLOWANCE },
+        { label: "Kit Allowance", value: data.KIT_ALLOWANCE },
+        { label: "Un-Attracted Allowance", value: data.UN_ATTRACTED_ALLOWANCE },
+        { label: "Technical Allowance", value: data.TECHNICAL_ALLOWANCE },
+        { label: "Transport Subsidy", value: data.TRANSPORT_SUBSIDY },
+        { label: "DRA 2021", value: data.DRA21 },
+        { label: "DRA 2022", value: data.DRA22 },
+        { label: "ARA 2022", value: data.ARA22 },
+        { label: "ARA 2023", value: data.ARA23 },
+        { label: "ARA 2024", value: data.ARA24 },
+        { label: "ARA 2025", value: data.ARA25 },
+        { label: "DRA 2025", value: data.DRA25 },
+        { label: "Miscellaneous Allowance", value: data.MISCELLANEOUS_ALLOWANCE },
+        { label: "Lumpsum Salary", value: data.LUMPSUM_SALARY },  // <-- ADDED HERE
+        { label: "Daily Wages Salary", value: data.DAILY_WAGES_SALARY }
+    ];
+    
+    // Use GROSS_PAY from API instead of calculating manually
+    // This ensures Lumpsum Salary is included correctly
+    let totalEarnings = parseFloat(data.GROSS_PAY) || 0;
+    
+    // Display individual earnings (only show positive amounts)
+    earnings.forEach(item => {
+        const amount = parseFloat(item.value) || 0;
+        if (amount > 0 && yPos < 260) {
+            pdf.text(item.label, 20, yPos);
+            pdf.text(amount.toLocaleString(), 170, yPos, { align: "right" });
+            yPos += 4;
+        }
+    });
+    
+    yPos += 2;
+    pdf.line(20, yPos, 190, yPos);
+    yPos += 3;
+    
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.text("GROSS EARNINGS", 20, yPos);
+    pdf.text(totalEarnings.toLocaleString(), 170, yPos, { align: "right" });
+    
+    // Deductions Section
+    yPos += 10;
+    pdf.line(20, yPos, 190, yPos);
+    yPos += 3;
+    
+    pdf.setFont("helvetica", "bold");
+    pdf.text("DEDUCTIONS", 20, yPos);
+    pdf.text("AMOUNT (PKR)", 170, yPos, { align: "right" });
+    
+    yPos += 5;
+    pdf.line(20, yPos, 190, yPos);
+    yPos += 3;
+    
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    
+    const deductions = [
+        { label: "Income Tax", value: data.INCOME_TAX },
+        { label: "Government Provident Fund", value: data.GOVT_PROVIDENT_FUND },
+        { label: "WAPDA Welfare Fund", value: data.WAPDA_WELFARE_FUND },
+        { label: "GLI Deduction", value: data.GLI_DEDUCTION },
+        { label: "Union Fund", value: data.UNION_FUND },
+        { label: "Medical Benevolent Fund", value: data.MEDICAL_BENEVOLENT_FUND },
+        { label: "House Rent Deduction", value: data.HOUSE_RENT_DEDUCTION },
+        { label: "Bus Charges", value: data.BUS_CHARGES },
+        { label: "Misc Recovery", value: data.MISC_RECOVERY },
+        { label: "GP Fund Advance I", value: data.GP_FUND_ADVANCE_I },
+        { label: "GP Fund Advance II", value: data.GP_FUND_ADVANCE_II }
+    ];
+    
+    let totalDeductions = parseFloat(data.TOTAL_DEDUCTION) || 0;
+    
+    // Display individual deductions (only show positive amounts)
+    deductions.forEach(item => {
+        const amount = parseFloat(item.value) || 0;
+        if (amount > 0 && yPos < 260) {
+            pdf.text(item.label, 20, yPos);
+            pdf.text(amount.toLocaleString(), 170, yPos, { align: "right" });
+            yPos += 4;
+        }
+    });
+    
+    yPos += 2;
+    pdf.line(20, yPos, 190, yPos);
+    yPos += 3;
+    
+    pdf.setFont("helvetica", "bold");
+    pdf.text("TOTAL DEDUCTIONS", 20, yPos);
+    pdf.text(totalDeductions.toLocaleString(), 170, yPos, { align: "right" });
+    
+    // Net Pay - Use NET_SALARY from API
+    const netPay = parseFloat(data.NET_SALARY) || (totalEarnings - totalDeductions);
+    yPos += 10;
+    pdf.setFillColor(240, 240, 240);
+    pdf.rect(20, yPos - 3, 170, 10, "F");
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(11);
+    pdf.text("NET PAYABLE AMOUNT", 20, yPos);
+    pdf.text("PKR " + netPay.toLocaleString(), 170, yPos, { align: "right" });
+    
+    // Footer
+    pdf.setFontSize(7);
+    pdf.setFont("helvetica", "italic");
+    pdf.text("This is a computer generated salary slip.", 105, 280, { align: "center" });
+    pdf.text(`Generated on: ${new Date().toLocaleString()}`, 105, 285, { align: "center" });
+}
+
+function showProgressIndicator() {
+    const progressDiv = document.createElement('div');
+    progressDiv.id = 'bulk-progress';
+    progressDiv.style.cssText = `
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: #1c2128; padding: 20px 40px; border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10000;
+        text-align: center; color: white; font-family: Arial, sans-serif;
+        min-width: 350px;
+    `;
+    progressDiv.innerHTML = `
+        <div style="margin-bottom: 15px;"><i class="fas fa-spinner fa-pulse fa-2x"></i></div>
+        <div id="progress-text">Generating searchable PDF...</div>
+        <div style="margin-top: 10px; width: 100%; background: #30363d; border-radius: 4px; overflow: hidden;">
+            <div id="progress-bar" style="width: 0%; height: 4px; background: #2f81f7; transition: width 0.3s;"></div>
+        </div>
+        <div id="progress-detail" style="margin-top: 10px; font-size: 12px; color: #8b949e;"></div>
+    `;
+    document.body.appendChild(progressDiv);
+    return progressDiv;
+}
+
+function updateProgress(progressDiv, current, total) {
+    const percent = (current / total) * 100;
+    const progressBar = progressDiv.querySelector('#progress-bar');
+    const progressText = progressDiv.querySelector('#progress-text');
+    const progressDetail = progressDiv.querySelector('#progress-detail');
+    
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (progressText) progressText.innerHTML = `Processing ${current} of ${total} salary slips...`;
+    if (progressDetail) progressDetail.innerHTML = `${Math.round(percent)}% complete`;
+}
+
+function removeProgressIndicator(progressDiv) {
+    if (progressDiv && progressDiv.parentNode) {
+        progressDiv.parentNode.removeChild(progressDiv);
+    }
+}
+function triggerEmployee360() {
+    let userInput = prompt("Enter ERP Number or CNIC (with or without dashes):");
+    
+    if (userInput && userInput.trim() !== "") {
+        fetch(`/get_employee_360_data?search_val=${encodeURIComponent(userInput.trim())}`)
+            .then(response => {
+                if (!response.ok) throw new Error("ID not found or database error.");
+                return response.json();
+            })
+            .then(data => {
+                generate360PDF(data);
+            })
+            .catch(err => {
+                alert("System Message: " + err.message);
+            });
+    }
+}
+
+function generate360PDF(data) {
+    const photoBaseUrl = window.location.origin + "/static/emp_photos/"; 
+    
+    // Fallback for profile picture
+    const profileImgUrl = data.employee_number 
+        ? `${photoBaseUrl}${data.employee_number.toString().trim()}.jpg` 
+        : `https://ui-avatars.com/api/?name=${data.first_name}+${data.last_name}&background=007bff&color=fff`;
+
+    const getBase64Image = (url) => fetch(url)
+        .then(response => response.ok ? response.blob() : Promise.reject())
+        .then(blob => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+        }))
+        .catch(() => `https://ui-avatars.com/api/?name=${data.first_name}+${data.last_name}&background=0056b3&color=fff`);
+
+    getBase64Image(profileImgUrl).then(base64Img => {
+        const element = document.createElement('div');
+        element.style.width = "1050px"; 
+        element.style.padding = "40px";
+        element.style.background = "#fff";
+
+        const fullName = [data.first_name, data.middle_names, data.last_name]
+            .filter(n => n && n.trim() !== "").join(" ");
+
+// 1. Build Training Rows (Restored Logic)
+        let trainingRows = "";
+        if (data.trainings && data.trainings.length > 0) {
+            data.trainings.forEach(tr => {
+                trainingRows += `
+                    <tr style="border-bottom: 1px solid #eee; font-size: 10pt; page-break-inside: avoid; color: #000;">
+                        <td style="padding: 10px; width: 75%;"><strong>${tr.name}</strong></td>
+                        <td style="padding: 10px; width: 25%; text-align: right; color: #333;">${tr.date || 'N/A'}</td>
+                    </tr>`;
+            });
+        } else {
+            trainingRows = `<tr><td colspan="2" style="padding:15px; text-align:center; color: #333;">No professional training records found.</td></tr>`;
+        }
+
+        // 2. Build Assignment Rows
+        let assignmentRows = "";
+        if (data.assignments && data.assignments.length > 0) {
+            data.assignments.forEach(asg => {
+                assignmentRows += `
+                    <tr style="border-bottom: 1px solid #eee; font-size: 10pt; page-break-inside: avoid; color: #000;">
+                        <td style="padding: 10px; width: 25%;"><strong>${asg.designation}</strong></td>
+                        <td style="padding: 10px; width: 10%;">${asg.grade}</td>
+                        <td style="padding: 10px; width: 35%;">${asg.office}</td>
+                        <td style="padding: 10px; width: 30%; color: #333; font-size: 9pt; text-align: right; white-space: nowrap;">
+                            ${asg.from_date} to ${asg.to_date}
+                        </td>
+                    </tr>`;
+            });
+        } else {
+            assignmentRows = `<tr><td colspan="4" style="padding:20px; text-align:center; color: #000;">No assignment history found.</td></tr>`;
+        }
+
+        // 3. Update the HTML (Adding Training Section before the Footer)
+        element.innerHTML = `
+            <div style="border: 2px solid #0056b3; padding: 25px; font-family: Arial, sans-serif; color: #000;">
+                <table style="width: 100%; border-bottom: 3px solid #0056b3; margin-bottom: 20px; padding-bottom: 15px;">
+                    <tr>
+                        <td style="vertical-align: top; width: 75%;">
+                            <h1 style="color: #0056b3; margin: 0; font-size: 26pt; text-transform: uppercase;">Employee 360° Profile</h1>
+                            <p style="color: #333; margin: 5px 0; font-size: 12pt;">PESCO Strategic HRIS Dashboard Report</p>
+                            
+                            <div style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; line-height: 1.6; color: #000;">
+                                <div>
+                                    <p style="margin: 2px 0; font-size: 11pt;"><strong>Name:</strong> ${fullName}</p>
+                                    <p style="margin: 2px 0; font-size: 11pt;"><strong>Father Name:</strong> ${data.father_name || 'N/A'}</p>
+                                    <p style="margin: 2px 0; font-size: 11pt;"><strong>ERP Number:</strong> ${data.employee_number}</p>
+                                    <p style="margin: 2px 0; font-size: 11pt;"><strong>GP Fund No:</strong> ${data.gpf_no || 'N/A'}</p>
+                                    <p style="margin: 2px 0; font-size: 11pt;"><strong>Cadre:</strong> <span style="color: #0056b3;">${data.cadre || 'N/A'}</span></p>
+                                </div>
+                                <div>
+                                    <p style="margin: 2px 0; font-size: 11pt;"><strong>CNIC:</strong> ${data.national_identifier}</p>
+                                    <p style="margin: 2px 0; font-size: 11pt;"><strong>Contact No:</strong> ${data.contact_no || 'N/A'}</p>
+                                    <p style="margin: 2px 0; font-size: 11pt;"><strong>Qualification:</strong> ${data.qualification || 'N/A'}</p>
+                                    <p style="margin: 2px 0; font-size: 11pt;"><strong>Joining:</strong> ${data.hire_date || 'N/A'}</p>
+                                    <p style="margin: 2px 0; font-size: 11pt;"><strong>Retirement:</strong> <span style="color: #d9534f; font-weight: bold;">${data.retirement_date}</span></p>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="vertical-align: top; text-align: right; width: 25%;">
+                            <img src="${base64Img}" style="width: 140px; height: 160px; border: 3px solid #0056b3; border-radius: 4px; object-fit: cover;">
+                        </td>
+                    </tr>
+                </table>
+
+                <h3 style="background: #e9f2ff; padding: 10px; color: #0056b3; border-left: 6px solid #0056b3; font-size: 14pt; margin: 20px 0 10px 0;">Career & Assignment History</h3>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; color: #000;">
+                    <thead>
+                        <tr style="background: #f8f9fa; border-bottom: 2px solid #0056b3; text-align: left; font-size: 9pt; color: #000;">
+                            <th style="padding: 10px;">Designation</th>
+                            <th style="padding: 10px;">Grade</th>
+                            <th style="padding: 10px;">Office</th>
+                            <th style="padding: 10px; text-align: right;">Tenure</th>
+                        </tr>
+                    </thead>
+                    <tbody>${assignmentRows}</tbody>
+                </table>
+
+                <h3 style="background: #e9f2ff; padding: 10px; color: #0056b3; border-left: 6px solid #0056b3; font-size: 14pt; margin: 20px 0 10px 0;">Professional Training History</h3>
+                <table style="width: 100%; border-collapse: collapse; color: #000;">
+                    <thead>
+                        <tr style="background: #f8f9fa; border-bottom: 2px solid #0056b3; text-align: left; font-size: 9pt; color: #000;">
+                            <th style="padding: 10px;">Course Title</th>
+                            <th style="padding: 10px; text-align: right;">Date / Period</th>
+                        </tr>
+                    </thead>
+                    <tbody>${trainingRows}</tbody>
+                </table>
+
+                <div style="margin-top: 30px; text-align: center; font-size: 9px; color: #333; border-top: 1px solid #eee; padding-top: 10px;">
+                    Generated by PESCO EBS HRIS Dashboard | ${new Date().toLocaleString()}
+                </div>
+            </div>`;
+
+        const opt = {
+            margin: 0.3,
+            filename: `360_Profile_${data.employee_number}_Landscape.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+        };
+
+        html2pdf().set(opt).from(element).save();
+    });
 }
