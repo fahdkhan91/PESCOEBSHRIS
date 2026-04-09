@@ -12,20 +12,13 @@ import base64
 
 
 def init_oracle():
-    try:
-      
-        if platform.system() == "Linux":
-            # Render path
-            lib_dir = os.path.join(os.getcwd(), "instantclient")
-            oracledb.init_oracle_client(lib_dir=lib_dir)
-        else:
-    
-            oracledb.init_oracle_client(lib_dir=r"C:\oracle\instantclient_23_0")
-        print("Oracle Thick Mode initialized.")
-    except Exception as e:
-        print(f"Oracle Client Error: {e}")
+    # Thin mode - no Oracle Instant Client needed
+    # Compatible with Oracle Database 12.1 and later
+    print("Oracle Thin Mode initialized successfully.")
 
 init_oracle()
+
+
 
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_key'
