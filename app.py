@@ -1,4 +1,3 @@
-
 from flask import Flask, jsonify, render_template, request, url_for, session, redirect, stream_with_context, request, Response
 from flask import send_file, render_template_string
 import pandas as pd
@@ -9,104 +8,47 @@ import io
 import os
 import platform
 import json
+import pdfkit
+import base64
 
-USE_MOCK_DB = True  # Set to False for real Oracle, True for Render deployment
-
-# Mock Database Classes (only used when USE_MOCK_DB = True)
-class MockConnection:
-    def cursor(self):
-        return MockCursor()
-    def close(self):
-        pass
-    def commit(self):
-        pass
-
-class MockCursor:
-    def __init__(self):
-        self.description = None
-        self.results = []
-        self.arraysize = 1000
-    
-    def execute(self, query, params=None):
-        # Return sample data for any query when in mock mode
-        if not hasattr(self, '_called'):
-            self.description = [('COL1',), ('COL2',)]
-            self.results = [('Mock Data', 'Running in Mock Mode')]
-            self._called = True
-        return self
-    
-    def fetchall(self):
-        return self.results
-    
-    def fetchmany(self, size):
-        return self.results[:size]
-    
-    def fetchone(self):
-        return self.results[0] if self.results else None
-    
-    def close(self):
-        pass
-
-# Modify get_db_connection to support mock mode
-original_get_db_connection = None
-
-# Store original if it exists
-try:
-    original_get_db_connection = get_db_connection
-except:
-    pass
-
-def get_db_connection():
-    if USE_MOCK_DB:
-        return MockConnection()
-    try:
-        import oracledb
-        return oracledb.connect(
-            user="apps",
-            password="appstest12",
-            dsn="10.10.12.15:1521/PERPROD"
-        )
-    except:
-        return MockConnection()
-
-# Also modify init_oracle to skip when in mock mode
-original_init_oracle = None
-try:
-    original_init_oracle = init_oracle
-except:
-    pass
 
 def init_oracle():
-    if USE_MOCK_DB:
-        print("Mock mode - skipping Oracle init")
-        return
-    if original_init_oracle:
-        original_init_oracle()
-    else:
-        try:
-            import oracledb
-            if platform.system() == "Linux":
-                lib_dir = os.path.join(os.getcwd(), "instantclient")
-                oracledb.init_oracle_client(lib_dir=lib_dir)
-            else:
-                oracledb.init_oracle_client(lib_dir=r"C:\oracle\instantclient_23_0")
-        except:
-            pass
+    try:
+      
+        if platform.system() == "Linux":
+            # Render path
+            lib_dir = os.path.join(os.getcwd(), "instantclient")
+            oracledb.init_oracle_client(lib_dir=lib_dir)
+        else:
+    
+            oracledb.init_oracle_client(lib_dir=r"C:\oracle\instantclient_23_0")
+        print("Oracle Thick Mode initialized.")
+    except Exception as e:
+        print(f"Oracle Client Error: {e}")
 
-print(f"=== RUNNING IN {'MOCK' if USE_MOCK_DB else 'REAL'} MODE ===")
-# ============================================
-# END OF ADDED BLOCK - YOUR ORIGINAL CODE CONTINUES BELOW
+init_oracle()
 
 app = Flask(__name__)
-app.secret_key = 'pesco_hris_2026_secret_key'
+app.secret_key = 'your_very_secret_key'
+
+# Oracle connection
+connection = oracledb.connect(
+    user="apps",
+    password="appstest12",
+    dsn="10.10.12.15:1521/PERPROD"
+)
+
+
+def get_db_connection():
+    # Replace with your actual credentials used in the PESCO-EBS-HRIS project
+    return oracledb.connect(user="apps", password="appstest12", dsn="10.10.12.15:1521/PERPROD")
+
 @app.route("/download_pdf/<query_name>")
 def download_pdf(query_name):
 
     html_table = df.to_html(classes='table table-striped', index=False)
 
     from svglib.svglib import svg2rlg
-
-
 
 
 @app.route("/download/<query_name>")
@@ -144,19 +86,23 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
+        # Check if username exists and password matches
         user_info = USERS.get(username)
         
         if user_info and user_info['password'] == password:
             session['logged_in'] = True
             session['username'] = username
-            session['user_role'] = user_info['role']
+            session['user_role'] = user_info['role']  # <--- SAVE THE ROLE HERE
             return redirect(url_for('dashboard'))
         else:
             return "Invalid credentials", 401
-    
-    # Inline HTML instead of render_template
+            
+    return render_template('login.html')
 
-
+def roles_required(*allowed_roles):
+    if session.get('user_role') not in allowed_roles:
+        return False
+    return True
 
 
 
@@ -223,6 +169,64 @@ def get_payroll_earnings():
         print(f"Payroll Earnings Error: {e}")
         return jsonify({"error": str(e)}), 500
 queries = {
+
+"Employee's_360":"""
+
+/* Keep the CORE logic exactly the same as our optimized SQL Developer version, 
+   but use :search_val so the Dashboard can pass the input safely.
+*/
+WITH person_analysis AS (
+    SELECT 
+        p.employee_number,
+        p.first_name,
+        p.last_name,
+        p.national_identifier,
+    qual.name AS "Qualification",
+    ph.phone_number AS "Contact N
+        jb.name AS DESIGNATION,
+        org.name AS OFFICE,
+        sp.name AS special_info_type,
+        ac.segment1 AS training_code,
+        ac.segment2 AS training_name,
+        ac.segment3 AS training_type,
+        ac.segment4 AS category,umber",
+    ass.ass_attribute1 AS "CADRE",
+        gr.name AS GRADE,
+        ac.segment9 AS start_date,
+        ac.segment10 AS end_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY p.person_id 
+            ORDER BY an.date_from DESC NULLS LAST, ac.start_date_active DESC NULLS LAST
+        ) AS rn
+    FROM 
+        per_people_v7 p
+        LEFT JOIN per_person_analyses an ON p.person_id = an.person_id
+        LEFT JOIN hr.per_analysis_criteria ac ON ac.id_flex_num = an.id_flex_num
+            AND ac.analysis_criteria_id = an.analysis_criteria_id
+        LEFT JOIN per_special_info_types_v2 sp ON sp.id_flex_num = ac.id_flex_num
+        LEFT JOIN per_assignments_x ass ON ass.person_id = p.person_id
+        LEFT JOIN per_grades gr ON gr.grade_id = ass.grade_id
+        LEFT JOIN per_jobs jb ON jb.job_id = ass.job_id
+        LEFT JOIN per_all_organization_units org ON org.organization_id = ass.organization_id
+INNER JOIN 
+    per_all_people_f pp ON ass.person_id = pp.person_id
+INNER JOIN 
+    per_people_f p ON ass.person_id = p.person_id
+-- Join for Qualifications
+INNER JOIN 
+    per_qualifications_v qual ON pp.person_id = qual.person_id
+-- Join for Phone Numbers
+INNER JOIN 
+    per_phones ph ON p.party_id = ph.party_id
+
+    WHERE 
+        -- These bind variables are filled by your Flask/Python cursor.execute()
+        p.employee_number = :search_val 
+        OR p.national_identifier = :search_val
+)
+SELECT * FROM person_analysis 
+
+""",
 
 "All_Employees_Data": """
        SELECT 
@@ -1665,63 +1669,6 @@ group by
     papf.attribute2
 """,
 
-"Sub_Division_Wise_Vacancy": """
-WITH position_data AS (
-    SELECT 
-        pos.organization_id,
-        org.name AS office_name,
-        SUM(pos.max_persons) AS sanctioned
-    FROM hr.hr_all_positions_f pos
-    INNER JOIN per_all_organization_units org 
-        ON org.organization_id = pos.organization_id
-    WHERE 1=1
-      /* FILTER 1: Scrub the Position Location */
-      AND NVL(pos.location_id, -1) NOT IN (27625)
-      /* FILTER 2: Scrub the Organization Location (The leak source) */
-      AND NVL(org.location_id, -1) NOT IN (27625)
-      AND TRUNC(SYSDATE) BETWEEN pos.effective_start_date AND pos.effective_end_date
-    GROUP BY pos.organization_id, org.name
-),
-
-assignment_data AS (
-    SELECT 
-        ass.organization_id,
-        SUM(CASE WHEN UPPER(TRIM(ass.employment_category)) = 'REG' THEN 1 ELSE 0 END) AS regular,
-        SUM(CASE WHEN UPPER(TRIM(ass.employment_category)) = 'COT' THEN 1 ELSE 0 END) AS contract,
-        SUM(CASE WHEN UPPER(TRIM(ass.employment_category)) = 'CONSLSM' THEN 1 ELSE 0 END) AS lumpsum,
-        SUM(CASE WHEN UPPER(TRIM(ass.employment_category)) = 'XX_DEP' THEN 1 ELSE 0 END) AS deputation,
-        SUM(CASE WHEN UPPER(TRIM(ass.employment_category)) = 'DW' THEN 1 ELSE 0 END) AS daily_wages
-    FROM per_assignments_x ass
-    WHERE 1=1
-      /* FILTER 3: Scrub the Assignment Location */
-      AND NVL(ass.location_id, -1) NOT IN (27625)
-      AND TRUNC(SYSDATE) BETWEEN ass.effective_start_date AND ass.effective_end_date
-      AND ass.primary_flag = 'Y'
-    GROUP BY ass.organization_id
-)
-
-SELECT 
-    p.office_name AS "Office Name",
-    NVL(p.sanctioned, 0) AS "Total Sanctioned",
-    ( NVL(a.regular, 0)
-    + NVL(a.contract, 0)
-    + NVL(a.lumpsum, 0)
-    + NVL(a.deputation, 0)
-    + NVL(a.daily_wages, 0) ) AS "Total Working",
-    GREATEST(
-        NVL(p.sanctioned, 0) -
-        ( NVL(a.regular, 0)
-        + NVL(a.contract, 0)
-        + NVL(a.lumpsum, 0)
-        + NVL(a.deputation, 0)
-        + NVL(a.daily_wages, 0) ), 0
-    ) AS "Total Vacant"
-FROM position_data p
-/* Use LEFT JOIN to keep offices that are sanctioned but have 0 staff */
-LEFT JOIN assignment_data a
-    ON p.organization_id = a.organization_id
-ORDER BY p.office_name
-""",
 "Bulk_Salary_Slips": """
 SELECT DISTINCT
     papf.employee_number AS employee_number,
@@ -1733,58 +1680,62 @@ SELECT DISTINCT
     (SELECT name FROM per_jobs WHERE job_id = paaf.job_id) AS designation,
     (SELECT name FROM per_grades WHERE grade_id = paaf.grade_id) AS grade,
     NVL(SUM(DECODE(petf.element_type_id, 121, prrv.result_value)), 0) AS basic_salary,
-    SUM(DECODE(petf.element_type_id, 138, prrv.result_value)) AS personal_pay,
-    SUM(DECODE(petf.element_type_id, 460, prrv.result_value)) AS DRA21,
-    SUM(DECODE(petf.element_type_id, 478, prrv.result_value)) AS DRA22,
-    SUM(DECODE(petf.element_type_id, 345, prrv.result_value)) AS ARA22,
-    SUM(DECODE(petf.element_type_id, 458, prrv.result_value)) AS ARA23,
-    SUM(DECODE(petf.element_type_id, 456, prrv.result_value)) AS ARA24,
-    SUM(DECODE(petf.element_type_id, 458, prrv.result_value)) AS ARA25,
-    SUM(DECODE(petf.element_type_id, 456, prrv.result_value)) AS DRA25,
-    SUM(DECODE(petf.element_type_id, 456, prrv.result_value)) AS miscellaneous_allowance,
-    SUM(DECODE(petf.element_type_id, 480, prrv.result_value)) AS house_rent_allowance,
-    SUM(DECODE(petf.element_type_id, 129, prrv.result_value)) AS cash_medical_allowance,
-    SUM(DECODE(petf.element_type_id, 146, prrv.result_value)) AS conveyance_allowance,
-    SUM(DECODE(petf.element_type_id, 131, prrv.result_value)) AS hard_area_allowance,
-    SUM(DECODE(petf.element_type_id, 141, prrv.result_value)) AS special_allowance,
-    SUM(DECODE(petf.element_type_id, 183, prrv.result_value)) AS danger_allowance,
-    SUM(DECODE(petf.element_type_id, 142, prrv.result_value)) AS wapda_special_relief_allowance,
-    SUM(DECODE(petf.element_type_id, 134, prrv.result_value)) AS integrated_allowance,
-    SUM(DECODE(petf.element_type_id, 201, prrv.result_value)) AS gli_allowance,
-    SUM(DECODE(petf.element_type_id, 391, prrv.result_value)) AS Misc_Arrear,
-    SUM(DECODE(petf.element_type_id, 387, prrv.result_value)) AS job_allowance,
-    SUM(DECODE(petf.element_type_id, 221, prrv.result_value)) AS motor_cycle_allowance,
-    SUM(DECODE(petf.element_type_id, 203, prrv.result_value)) AS special_pay,
-    SUM(DECODE(petf.element_type_id, 139, prrv.result_value)) AS qualification_pay,
-    SUM(DECODE(petf.element_type_id, 128, prrv.result_value)) AS entertainment_allowance,
-    SUM(DECODE(petf.element_type_id, 143, prrv.result_value)) AS special_security_allowance,
-    SUM(DECODE(petf.element_type_id, 130, prrv.result_value)) AS headquarter_allowance,
-    SUM(DECODE(petf.element_type_id, 140, prrv.result_value)) AS senior_post_allowance,
-    SUM(DECODE(petf.element_type_id, 132, prrv.result_value)) AS hill_area_allowance,
-    SUM(DECODE(petf.element_type_id, 137, prrv.result_value)) AS orderly_allowance,
-    SUM(DECODE(petf.element_type_id, 243, prrv.result_value)) AS gso_allowance,
-    SUM(DECODE(petf.element_type_id, 127, prrv.result_value)) AS appointment_allowance,
-    SUM(DECODE(petf.element_type_id, 135, prrv.result_value)) AS kit_allowance,
-    SUM(DECODE(petf.element_type_id, 241, prrv.result_value)) AS un_attracted_allowance,
-    SUM(DECODE(petf.element_type_id, 144, prrv.result_value)) AS technical_allowance,
-    SUM(DECODE(petf.element_type_id, 145, prrv.result_value)) AS transport_subsidy,
+    NVL(SUM(DECODE(petf.element_type_id, 138, prrv.result_value)), 0) AS personal_pay,
+    NVL(SUM(DECODE(petf.element_type_id, 460, prrv.result_value)), 0) AS DRA21,
+    NVL(SUM(DECODE(petf.element_type_id, 478, prrv.result_value)), 0) AS DRA22,
+    NVL(SUM(DECODE(petf.element_type_id, 345, prrv.result_value)), 0) AS ARA22,
+    NVL(SUM(DECODE(petf.element_type_id, 458, prrv.result_value)), 0) AS ARA23,
+    NVL(SUM(DECODE(petf.element_type_id, 456, prrv.result_value)), 0) AS ARA24,
+    NVL(SUM(DECODE(petf.element_type_id, 458, prrv.result_value)), 0) AS ARA25,
+    NVL(SUM(DECODE(petf.element_type_id, 456, prrv.result_value)), 0) AS DRA25,
+    NVL(SUM(DECODE(petf.element_type_id, 456, prrv.result_value)), 0) AS miscellaneous_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 480, prrv.result_value)), 0) AS house_rent_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 129, prrv.result_value)), 0) AS cash_medical_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 146, prrv.result_value)), 0) AS conveyance_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 131, prrv.result_value)), 0) AS hard_area_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 141, prrv.result_value)), 0) AS special_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 183, prrv.result_value)), 0) AS danger_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 142, prrv.result_value)), 0) AS wapda_special_relief_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 134, prrv.result_value)), 0) AS integrated_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 201, prrv.result_value)), 0) AS gli_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 391, prrv.result_value)), 0) AS Misc_Arrear,
+    NVL(SUM(DECODE(petf.element_type_id, 387, prrv.result_value)), 0) AS job_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 221, prrv.result_value)), 0) AS motor_cycle_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 203, prrv.result_value)), 0) AS special_pay,
+    NVL(SUM(DECODE(petf.element_type_id, 139, prrv.result_value)), 0) AS qualification_pay,
+    NVL(SUM(DECODE(petf.element_type_id, 128, prrv.result_value)), 0) AS entertainment_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 143, prrv.result_value)), 0) AS special_security_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 130, prrv.result_value)), 0) AS headquarter_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 140, prrv.result_value)), 0) AS senior_post_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 132, prrv.result_value)), 0) AS hill_area_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 137, prrv.result_value)), 0) AS orderly_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 243, prrv.result_value)), 0) AS gso_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 127, prrv.result_value)), 0) AS appointment_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 135, prrv.result_value)), 0) AS kit_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 241, prrv.result_value)), 0) AS un_attracted_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 144, prrv.result_value)), 0) AS technical_allowance,
+    NVL(SUM(DECODE(petf.element_type_id, 145, prrv.result_value)), 0) AS transport_subsidy,
+    NVL(SUM(DECODE(petf.element_type_id, 284, prrv.result_value)), 0) AS lumpsum_salary,
+    -- FIXED: Use petf.classification_id (same as working Salary_Slip query)
     SUM(DECODE(petf.classification_id, 124, NVL(prrv.result_value, 0))) AS gross_pay,
     -- Deductions
-    SUM(DECODE(petf.element_type_id, 151, prrv.result_value)) AS union_fund,
-    SUM(DECODE(petf.element_type_id, 193, prrv.result_value)) AS income_tax,
-    SUM(DECODE(petf.element_type_id, 152, prrv.result_value)) AS wapda_welfare_fund,
-    SUM(DECODE(petf.element_type_id, 181, prrv.result_value)) AS gli_deduction,
-    SUM(DECODE(petf.element_type_id, 150, prrv.result_value)) AS medical_benevolent_fund,
-    SUM(DECODE(petf.element_type_id, 202, prrv.result_value)) AS house_rent_deduction,
-    SUM(DECODE(petf.element_type_id, 147, prrv.result_value)) AS bus_charges,
-    SUM(DECODE(petf.element_type_id, 395, prrv.result_value)) AS Misc_Recovery,
-    SUM(DECODE(petf.element_type_id, 519, prrv.result_value)) AS GP_Fund_Advance_I,
-    SUM(DECODE(petf.element_type_id, 520, prrv.result_value)) AS GP_Fund_Advance_II,
-    SUM(DECODE(petf.element_type_id, 392, prrv.result_value)) AS govt_provident_fund,
+    NVL(SUM(DECODE(petf.element_type_id, 151, prrv.result_value)), 0) AS union_fund,
+    NVL(SUM(DECODE(petf.element_type_id, 193, prrv.result_value)), 0) AS income_tax,
+    NVL(SUM(DECODE(petf.element_type_id, 152, prrv.result_value)), 0) AS wapda_welfare_fund,
+    NVL(SUM(DECODE(petf.element_type_id, 181, prrv.result_value)), 0) AS gli_deduction,
+    NVL(SUM(DECODE(petf.element_type_id, 150, prrv.result_value)), 0) AS medical_benevolent_fund,
+    NVL(SUM(DECODE(petf.element_type_id, 202, prrv.result_value)), 0) AS house_rent_deduction,
+    NVL(SUM(DECODE(petf.element_type_id, 147, prrv.result_value)), 0) AS bus_charges,
+    NVL(SUM(DECODE(petf.element_type_id, 395, prrv.result_value)), 0) AS Misc_Recovery,
+    NVL(SUM(DECODE(petf.element_type_id, 519, prrv.result_value)), 0) AS GP_Fund_Advance_I,
+    NVL(SUM(DECODE(petf.element_type_id, 520, prrv.result_value)), 0) AS GP_Fund_Advance_II,
+    NVL(SUM(DECODE(petf.element_type_id, 392, prrv.result_value)), 0) AS govt_provident_fund,
+    -- FIXED: Use petf.classification_id
     NVL(SUM(DECODE(petf.classification_id, 127, NVL(prrv.result_value, 0))), 0) AS total_deduction,
+    -- FIXED: Use petf.classification_id
     NVL(SUM(DECODE(petf.classification_id, 124, NVL(prrv.result_value, 0))), 0) -
     NVL(SUM(DECODE(petf.classification_id, 127, NVL(prrv.result_value, 0))), 0) AS net_salary,
-    SUM(DECODE(petf.element_type_id, 189, prrv.result_value)) AS daily_wages_salary
+    NVL(SUM(DECODE(petf.element_type_id, 189, prrv.result_value)), 0) AS daily_wages_salary
 FROM
     per_all_people_f papf,
     per_all_assignments_f paaf,
@@ -1865,7 +1816,67 @@ GROUP BY
     paaf.organization_id,
     papf.national_identifier,
     papf.attribute2
+ORDER BY papf.employee_number
 """,
+
+"Sub_Division_Wise_Vacancy": """
+WITH position_data AS (
+    SELECT 
+        pos.organization_id,
+        org.name AS office_name,
+        SUM(pos.max_persons) AS sanctioned
+    FROM hr.hr_all_positions_f pos
+    INNER JOIN per_all_organization_units org 
+        ON org.organization_id = pos.organization_id
+    WHERE 1=1
+      /* FILTER 1: Scrub the Position Location */
+      AND NVL(pos.location_id, -1) NOT IN (27625)
+      /* FILTER 2: Scrub the Organization Location (The leak source) */
+      AND NVL(org.location_id, -1) NOT IN (27625)
+      AND TRUNC(SYSDATE) BETWEEN pos.effective_start_date AND pos.effective_end_date
+    GROUP BY pos.organization_id, org.name
+),
+
+assignment_data AS (
+    SELECT 
+        ass.organization_id,
+        SUM(CASE WHEN UPPER(TRIM(ass.employment_category)) = 'REG' THEN 1 ELSE 0 END) AS regular,
+        SUM(CASE WHEN UPPER(TRIM(ass.employment_category)) = 'COT' THEN 1 ELSE 0 END) AS contract,
+        SUM(CASE WHEN UPPER(TRIM(ass.employment_category)) = 'CONSLSM' THEN 1 ELSE 0 END) AS lumpsum,
+        SUM(CASE WHEN UPPER(TRIM(ass.employment_category)) = 'XX_DEP' THEN 1 ELSE 0 END) AS deputation,
+        SUM(CASE WHEN UPPER(TRIM(ass.employment_category)) = 'DW' THEN 1 ELSE 0 END) AS daily_wages
+    FROM per_assignments_x ass
+    WHERE 1=1
+      /* FILTER 3: Scrub the Assignment Location */
+      AND NVL(ass.location_id, -1) NOT IN (27625)
+      AND TRUNC(SYSDATE) BETWEEN ass.effective_start_date AND ass.effective_end_date
+      AND ass.primary_flag = 'Y'
+    GROUP BY ass.organization_id
+)
+
+SELECT 
+    p.office_name AS "Office Name",
+    NVL(p.sanctioned, 0) AS "Total Sanctioned",
+    ( NVL(a.regular, 0)
+    + NVL(a.contract, 0)
+    + NVL(a.lumpsum, 0)
+    + NVL(a.deputation, 0)
+    + NVL(a.daily_wages, 0) ) AS "Total Working",
+    GREATEST(
+        NVL(p.sanctioned, 0) -
+        ( NVL(a.regular, 0)
+        + NVL(a.contract, 0)
+        + NVL(a.lumpsum, 0)
+        + NVL(a.deputation, 0)
+        + NVL(a.daily_wages, 0) ), 0
+    ) AS "Total Vacant"
+FROM position_data p
+/* Use LEFT JOIN to keep offices that are sanctioned but have 0 staff */
+LEFT JOIN assignment_data a
+    ON p.organization_id = a.organization_id
+ORDER BY p.office_name
+""",
+
 
 "Salary_Slip":"""
 
@@ -2391,8 +2402,143 @@ def execute_query(sql, params):
     finally:
         cursor.close()
 
+
+
+@app.route('/get_employee_360_data')
+def get_employee_360_data():
+    raw_val = request.args.get('search_val', '').strip()
+    search_val = raw_val.replace('-', '')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # 1. YOUR EXACT ORIGINAL WORKING QUERY (Untouched)
+        sql_bio = """
+            SELECT * FROM (
+                SELECT 
+                    p.first_name,            -- 0
+                    p.middle_names,          -- 1
+                    p.last_name,             -- 2
+                    p.employee_number,       -- 3
+                    p.national_identifier,   -- 4
+                    TO_CHAR(p.date_of_birth, 'DD-MON-YYYY'), -- 5
+                    TO_CHAR(ADD_MONTHS(p.date_of_birth, 720), 'DD-MON-YYYY'), -- 6
+                    p.person_id,             -- 7
+                    p.attribute10,           -- 8 (Father Name)
+                    p.attribute2,            -- 9 (GPF)
+                    ac.segment2,             -- 10 (Training Name)
+                    TO_CHAR(an.date_from, 'DD-MON-YYYY'), -- 11 (Training Date)
+                    TO_CHAR(p.original_date_of_hire, 'DD-MON-YYYY') -- 12 (HIRE DATE)
+                FROM apps.per_people_v7 p
+                LEFT JOIN apps.per_person_analyses an ON p.person_id = an.person_id
+                LEFT JOIN apps.per_analysis_criteria ac ON an.analysis_criteria_id = ac.analysis_criteria_id
+                WHERE (REPLACE(p.employee_number, '-', '') = :sv OR REPLACE(p.national_identifier, '-', '') = :sv)
+                ORDER BY an.date_from DESC NULLS LAST
+            ) WHERE ROWNUM = 1
+        """
+        cursor.execute(sql_bio, sv=search_val)
+        bio = cursor.fetchone()
+        
+        if not bio:
+            return jsonify({"error": "No record found"}), 404
+
+        person_id = bio[7] 
+
+        # ---------------------------------------------------------
+        # 2. NEW ISOLATED QUERIES (Safe from Join Errors)
+        # ---------------------------------------------------------
+        
+        # Fetch Cadre
+        cursor.execute("""
+            SELECT ass_attribute1 FROM apps.per_all_assignments_f 
+            WHERE person_id = :pid 
+            AND TRUNC(SYSDATE) BETWEEN effective_start_date AND effective_end_date
+            AND ROWNUM = 1
+        """, pid=person_id)
+        cadre_row = cursor.fetchone()
+        cadre_val = cadre_row[0] if cadre_row else "N/A"
+
+        # Fetch Qualification
+        cursor.execute("""
+            SELECT name FROM apps.per_qualifications_v 
+            WHERE person_id = :pid AND ROWNUM = 1
+        """, pid=person_id)
+        qual_row = cursor.fetchone()
+        qual_val = qual_row[0] if qual_row else "N/A"
+
+        # Fetch Phone (Joining internal base table to respect party_id)
+        cursor.execute("""
+            SELECT MAX(ph.phone_number) 
+            FROM apps.per_people_f p
+            JOIN apps.per_phones ph ON p.party_id = ph.party_id
+            WHERE p.person_id = :pid
+        """, pid=person_id)
+        phone_row = cursor.fetchone()
+        phone_val = phone_row[0] if phone_row else "N/A"
+
+        # ---------------------------------------------------------
+        # 3. FETCH ASSIGNMENT HISTORY (Original working logic)
+        # ---------------------------------------------------------
+        sql_history = """
+            SELECT jb.name, gr.name, org.name,
+                   TO_CHAR(ass.effective_start_date, 'DD-MON-YYYY'),
+                   TO_CHAR(ass.effective_end_date, 'DD-MON-YYYY')
+            FROM apps.per_all_assignments_f ass
+            LEFT JOIN apps.per_jobs jb ON ass.job_id = jb.job_id
+            LEFT JOIN apps.per_grades gr ON ass.grade_id = gr.grade_id
+            LEFT JOIN apps.hr_all_organization_units org ON ass.organization_id = org.organization_id
+            WHERE ass.person_id = :pid
+            ORDER BY ass.effective_start_date DESC
+        """
+        cursor.execute(sql_history, pid=person_id)
+        
+        assignments = []
+        for row in cursor.fetchall():
+            assignments.append({
+                "designation": row[0] or "N/A",
+                "grade": row[1] or "N/A",
+                "office": row[2] or "N/A",
+                "from_date": row[3],
+                "to_date": "Present" if "4712" in str(row[4]) else row[4]
+            })
+
+        # ---------------------------------------------------------
+        # 4. COMPILE FINAL RESPONSE
+        # ---------------------------------------------------------
+        data = {
+            "first_name": bio[0] or "",
+            "middle_names": bio[1] or "",
+            "last_name": bio[2] or "",
+            "employee_number": bio[3],
+            "national_identifier": bio[4],
+            "date_of_birth": bio[5],
+            "retirement_date": bio[6],
+            "father_name": bio[8] or "N/A",
+            "gpf_no": bio[9] or "N/A",
+            "trainings": [{"name": bio[10], "date": bio[11]}] if bio[10] else [],
+            "hire_date": bio[12] or "N/A",
+            
+            # Append new isolated values
+            "cadre": cadre_val,
+            "qualification": qual_val,
+            "contact_no": phone_val,
+            
+            "assignments": assignments
+        }
+        return jsonify(data)
+
+    except Exception as e:
+        print(f"Server Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
 @app.route('/api/Bulk_Salary_Slips')
 def bulk_salary_slips():
+    """Corrected version with proper assignment_set_id filtering"""
     try:
         emp_no = request.args.get('emp_no')
         set_id = request.args.get('set_id')
@@ -2401,45 +2547,98 @@ def bulk_salary_slips():
         if not payroll_date:
             return jsonify({"error": "Payroll date is required"}), 400
 
+        # Get the original SQL
         sql = queries.get("Bulk_Salary_Slips")
         if not sql:
             return jsonify({"error": "SQL query not found"}), 500
 
-        # Prepare parameters – all optional except date
+        # CRITICAL FIX: Convert set_id to integer and handle properly
         params = {
             "p_emp_no": emp_no if emp_no else None,
-            "p_assignment_set_id": set_id if set_id else None,
             "p_city": None,
             "p_payroll_date": payroll_date.upper()
         }
+        
+        # Convert set_id to integer for proper numeric comparison
+        if set_id and set_id.strip():
+            try:
+                params["p_assignment_set_id"] = int(set_id.strip())
+                print(f"Using assignment_set_id: {params['p_assignment_set_id']}")
+            except ValueError:
+                params["p_assignment_set_id"] = None
+                print(f"Warning: Could not convert set_id '{set_id}' to integer")
+        else:
+            params["p_assignment_set_id"] = None
 
-        def generate_json():
+        # Debug: Print the SQL and params
+        print(f"Executing bulk salary query with params: {params}")
+
+        def generate_json_chunked():
+            cursor = None
             try:
                 cursor = connection.cursor()
-                cursor.arraysize = 1000
+                cursor.arraysize = 50
                 cursor.execute(sql, params)
                 columns = [col[0] for col in cursor.description]
+                
                 yield "["
                 first = True
+                row_count = 0
+                
                 while True:
-                    rows = cursor.fetchmany(1000)
+                    rows = cursor.fetchmany(50)
                     if not rows:
                         break
+                    
                     for row in rows:
                         if not first:
                             yield ","
-                        yield json.dumps(dict(zip(columns, row)))
+                        # Convert Oracle objects to Python types
+                        row_dict = {}
+                        for i, col in enumerate(columns):
+                            val = row[i]
+                            if hasattr(val, 'as_python'):
+                                val = val.as_python()
+                            elif hasattr(val, 'read'):
+                                val = str(val)
+                            row_dict[col] = val
+                        yield json.dumps(row_dict, default=str)
                         first = False
+                        row_count += 1
+                        
+                        if row_count % 200 == 0:
+                            import gc
+                            gc.collect()
+                    
+                    print(f"Fetched {len(rows)} rows, total: {row_count}")
+                
                 yield "]"
+                print(f"Completed! Total rows: {row_count}")
+                
             except Exception as e:
+                print(f"Database error: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 yield json.dumps({"error": f"Database error: {str(e)}"})
             finally:
-                cursor.close()
+                if cursor:
+                    cursor.close()
 
-        return Response(stream_with_context(generate_json()), mimetype='application/json')
+        return Response(
+            stream_with_context(generate_json_chunked()), 
+            mimetype='application/json',
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Content-Type-Options': 'nosniff'
+            }
+        )
 
     except Exception as e:
+        print(f"Bulk salary error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"Server error: {str(e)}"}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)
