@@ -8,7 +8,6 @@ import io
 import os
 import platform
 import json
-import pdfkit
 import base64
 
 
